@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My To-Do List</title>
+
   <style>
     :root {
       --bg: #f1f5f9;
@@ -66,12 +67,13 @@
       padding: 10px 13px;
     }
 
-    .theme-btn, .filter-btn {
+    .theme-btn, .filter-btn, .clear-btn {
       background: var(--bg);
       color: var(--text);
     }
 
     .form-row { margin-top: 24px; }
+
     input, select {
       min-width: 0;
       padding: 12px;
@@ -82,7 +84,11 @@
     }
 
     #taskInput { flex: 1; }
-    .add-btn { background: var(--primary); color: white; }
+    .add-btn, .notify-btn {
+      background: var(--primary);
+      color: white;
+    }
+
     .extras {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -93,12 +99,10 @@
     .extras select, .extras input { width: 100%; }
     #search { width: 100%; margin-top: 22px; }
 
-    .filters {
-      margin: 16px 0;
-      flex-wrap: wrap;
-    }
-
+    .notify-row { margin-top: 14px; }
+    .filters { margin: 16px 0; flex-wrap: wrap; }
     .filter-btn.active { background: var(--primary); color: white; }
+
     #taskList { list-style: none; padding: 0; margin: 0; }
 
     .task {
@@ -109,10 +113,19 @@
       align-items: flex-start;
     }
 
-    .task-info { flex: 1; min-width: 0; align-items: flex-start; }
+    .task-info {
+      flex: 1;
+      min-width: 0;
+      align-items: flex-start;
+    }
+
     .task input[type="checkbox"] { margin-top: 3px; }
     .task-text { overflow-wrap: anywhere; font-weight: 600; }
-    .done .task-text { text-decoration: line-through; color: var(--muted); }
+    .done .task-text {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
     .meta { margin-top: 7px; font-size: 12px; color: var(--muted); }
     .priority { font-size: 12px; font-weight: bold; }
     .High { color: #ef4444; }
@@ -120,8 +133,14 @@
     .Low { color: #16a34a; }
     .delete-btn { background: #fee2e2; color: #b91c1c; }
     .empty { padding: 25px 0; text-align: center; color: var(--muted); }
-    .footer { margin-top: 20px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-    .clear-btn { background: var(--bg); color: var(--text); }
+
+    .footer {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
 
     @media (max-width: 480px) {
       .app { padding: 17px; }
@@ -133,6 +152,7 @@
     }
   </style>
 </head>
+
 <body>
   <main class="app">
     <header class="top">
@@ -145,20 +165,38 @@
 
     <form id="taskForm">
       <div class="form-row">
-        <input id="taskInput" maxlength="200" placeholder="What do you need to do?" required>
+        <input id="taskInput" maxlength="200"
+          placeholder="What do you need to do?" required>
         <button class="add-btn" type="submit">+ Add Task</button>
       </div>
+
       <div class="extras">
         <select id="priority" aria-label="Task priority">
           <option value="Medium">Medium priority</option>
           <option value="High">High priority</option>
           <option value="Low">Low priority</option>
         </select>
+
         <input id="dueDate" type="date" aria-label="Due date">
+      </div>
+
+      <div class="extras">
+        <input id="reminderTime" type="datetime-local"
+          aria-label="Reminder date and time">
       </div>
     </form>
 
-    <input id="search" placeholder="🔎 Search tasks..." aria-label="Search tasks">
+    <div class="notify-row">
+      <button class="notify-btn" id="enableNotifications">
+        🔔 Enable Notifications
+      </button>
+      <p class="muted" id="notificationStatus">
+        Enable notifications to receive reminders.
+      </p>
+    </div>
+
+    <input id="search" placeholder="🔎 Search tasks..."
+      aria-label="Search tasks">
 
     <nav class="filters">
       <button class="filter-btn active" data-filter="All">All</button>
@@ -171,10 +209,13 @@
 
     <footer class="footer">
       <span id="progress" class="muted"></span>
-      <button id="clearCompleted" class="clear-btn">Clear completed</button>
+      <button id="clearCompleted" class="clear-btn">
+        Clear completed
+      </button>
     </footer>
   </main>
 
   <script src="script.js"></script>
 </body>
 </html>
+
