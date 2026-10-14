@@ -1,20 +1,180 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>To-Do List</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My To-Do List</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --primary: #4f46e5;
+      --input: #ffffff;
+    }
+
+    body.dark {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --line: #334155;
+      --primary: #818cf8;
+      --input: #0f172a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 28px 14px;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background .2s, color .2s;
+    }
+
+    .app {
+      max-width: 680px;
+      margin: auto;
+      padding: 25px;
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: 0 12px 35px #00000012;
+    }
+
+    .top, .filters, .task, .task-info, .form-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .top { justify-content: space-between; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .top p { margin: 0; }
+
+    button, input, select { font: inherit; }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      border-radius: 9px;
+      padding: 10px 13px;
+    }
+
+    .theme-btn, .filter-btn {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .form-row { margin-top: 24px; }
+    input, select {
+      min-width: 0;
+      padding: 12px;
+      color: var(--text);
+      background: var(--input);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    #taskInput { flex: 1; }
+    .add-btn { background: var(--primary); color: white; }
+    .extras {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .extras select, .extras input { width: 100%; }
+    #search { width: 100%; margin-top: 22px; }
+
+    .filters {
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn.active { background: var(--primary); color: white; }
+    #taskList { list-style: none; padding: 0; margin: 0; }
+
+    .task {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 13px;
+      margin-top: 10px;
+      align-items: flex-start;
+    }
+
+    .task-info { flex: 1; min-width: 0; align-items: flex-start; }
+    .task input[type="checkbox"] { margin-top: 3px; }
+    .task-text { overflow-wrap: anywhere; font-weight: 600; }
+    .done .task-text { text-decoration: line-through; color: var(--muted); }
+    .meta { margin-top: 7px; font-size: 12px; color: var(--muted); }
+    .priority { font-size: 12px; font-weight: bold; }
+    .High { color: #ef4444; }
+    .Medium { color: #d97706; }
+    .Low { color: #16a34a; }
+    .delete-btn { background: #fee2e2; color: #b91c1c; }
+    .empty { padding: 25px 0; text-align: center; color: var(--muted); }
+    .footer { margin-top: 20px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .clear-btn { background: var(--bg); color: var(--text); }
+
+    @media (max-width: 480px) {
+      .app { padding: 17px; }
+      h1 { font-size: 23px; }
+      .form-row { flex-wrap: wrap; }
+      #taskInput { flex-basis: 100%; }
+      .extras { grid-template-columns: 1fr; }
+      .footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-<h1>My To-Do List</h1>
-<div class="input-box">
-<input type="text" id="taskInput" placeholder="Enter a task">
-<button onclick="addTask()">Add</button>
-</div>
-<ul id="taskList"></ul>
-</div>
-<script src="script.js"></script>
+  <main class="app">
+    <header class="top">
+      <div>
+        <h1>My Tasks ✨</h1>
+        <p class="muted">Small steps, big progress.</p>
+      </div>
+      <button class="theme-btn" id="themeBtn">🌙 Dark</button>
+    </header>
+
+    <form id="taskForm">
+      <div class="form-row">
+        <input id="taskInput" maxlength="200" placeholder="What do you need to do?" required>
+        <button class="add-btn" type="submit">+ Add Task</button>
+      </div>
+      <div class="extras">
+        <select id="priority" aria-label="Task priority">
+          <option value="Medium">Medium priority</option>
+          <option value="High">High priority</option>
+          <option value="Low">Low priority</option>
+        </select>
+        <input id="dueDate" type="date" aria-label="Due date">
+      </div>
+    </form>
+
+    <input id="search" placeholder="🔎 Search tasks..." aria-label="Search tasks">
+
+    <nav class="filters">
+      <button class="filter-btn active" data-filter="All">All</button>
+      <button class="filter-btn" data-filter="Pending">Pending</button>
+      <button class="filter-btn" data-filter="Completed">Completed</button>
+    </nav>
+
+    <p id="summary" class="muted"></p>
+    <ul id="taskList"></ul>
+
+    <footer class="footer">
+      <span id="progress" class="muted"></span>
+      <button id="clearCompleted" class="clear-btn">Clear completed</button>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>
