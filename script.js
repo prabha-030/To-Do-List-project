@@ -167,3 +167,46 @@ themeBtn.addEventListener("click", () => {
 });
 
 renderTasks();
+
+
+async function enableNotifications() {
+  if (!("Notification" in window)) {
+    alert("Ee browser notifications support cheyyadu.");
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+
+  if (permission !== "granted") {
+    alert("Browser settings lo notifications allow cheyyi.");
+    return false;
+  }
+
+  alert("Notifications enabled!");
+  return true;
+}
+
+function setTaskReminder(taskName, dateTime) {
+  const reminderDate = new Date(dateTime);
+  const delay = reminderDate.getTime() - Date.now();
+
+  if (Number.isNaN(reminderDate.getTime()) || delay <= 0) {
+    alert("Future date and time select cheyyi.");
+    return;
+  }
+
+  if (!("Notification" in window) ||
+      Notification.permission !== "granted") {
+    alert("Munduga notifications enable cheyyi.");
+    return;
+  }
+
+  setTimeout(() => {
+    new Notification("To-Do List Reminder", {
+      body: "Task complete cheyyali: " + taskName
+    });
+  }, delay);
+
+  alert("Reminder set ayyindi!");
+}
+
