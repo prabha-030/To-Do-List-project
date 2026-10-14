@@ -1,192 +1,82 @@
-
 const $ = (id) => document.getElementById(id);
 
+// HTML elements
 const taskForm = $("taskForm");
 const taskInput = $("taskInput");
 const priorityInput = $("priority");
 const dueDateInput = $("dueDate");
-const searchInput = $("search");
+const reminderInput = $("reminderTime");
 const taskList = $("taskList");
+const searchInput = $("searchInput");
+const filterButtons = document.querySelectorAll(".filter-btn");
+const notificationButton = $("enableNotifications");
+const notificationStatus = $("notificationStatus");
+
+// Local storage
+const STORAGE_KEY = "modernTodoTasks";
 
 let tasks = [];
+
 try {
-  const saved = JSON.parse(localStorage.getItem("modernTodoTasks") || "[]");
-  if (Array.isArray(saved)) tasks = saved;
-} catch {
+  tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+} catch (error) {
   tasks = [];
 }
 
-let currentFilter = "All";
-
+// Save tasks
 function saveTasks() {
-  localStorage.setItem("modernTodoTasks", JSON.stringify(tasks));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
-function renderTasks() {
-  const query = searchInput.value.trim().toLowerCase();
+// HTML text safe ga display cheyyadaniki
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => {
+    const entities = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    };
 
-  const visible = tasks.filter(task => {
-    const matchesSearch = task.text.toLowerCase().includes(query);
-    const matchesFilter =
-      currentFilter === "All" ||
-      (currentFilter === "Pending" && !task.done) ||
-      (currentFilter === "Completed" && task.done);
-
-    return matchesSearch && matchesFilter;
-  });
-
-  taskList.replaceChildren();
-
-  $("summary").textContent =
-    `${tasks.filter(t => !t.done).length} pending · ${tasks.filter(t => t.done).length} completed`;
-
-  $("progress").textContent = tasks.length
-    ? `${Math.round(tasks.filter(t => t.done).length / tasks.length * 100)}% completed`
-    : "Your journey starts with one task!";
-
-  if (visible.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "empty";
-    empty.textContent = tasks.length ? "No matching tasks found." : "No tasks yet. Add your first task!";
-    taskList.appendChild(empty);
-  }
-
-  visible.forEach(task => {
-    const li = document.createElement("li");
-    li.className = "task" + (task.done ? " done" : "");
-
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.checked = task.done;
-    check.setAttribute("aria-label", "Mark task completed");
-    check.addEventListener("change", () => {
-      task.done = check.checked;
-      saveTasks();
-      renderTasks();
-    });
-
-    const info = document.createElement("div");
-    info.className = "task-info";
-
-    const content = document.createElement("div");
-    content.style.flex = "1";
-
-    const text = document.createElement("div");
-    text.className = "task-text";
-    text.textContent = task.text;
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-
-    const priority = document.createElement("span");
-    priority.className = "priority " + task.priority;
-    priority.textContent = task.priority + " priority";
-
-    meta.appendChild(priority);
-
-    if (task.dueDate) {
-      const due = document.createElement("span");
-      due.textContent = " · Due: " + task.dueDate;
-      if (!task.done && task.dueDate < new Date().toLocaleDateString("en-CA")) {
-        due.style.color = "#ef4444";
-        due.textContent += " (overdue)";
-      }
-      meta.appendChild(due);
-    }
-
-    content.append(text, meta);
-    info.appendChild(check);
-    info.appendChild(content);
-
-    const del = document.createElement("button");
-    del.className = "delete-btn";
-    del.textContent = "Delete";
-    del.setAttribute("aria-label", "Delete " + task.text);
-    del.addEventListener("click", () => {
-      tasks = tasks.filter(t => t.id !== task.id);
-      saveTasks();
-      renderTasks();
-    });
-
-    li.append(info, del);
-    taskList.appendChild(li);
+    return entities[char];
   });
 }
 
-taskForm.addEventListener("submit", event => {
-  event.preventDefault();
-
-  const text = taskInput.value.trim();
-  if (!text) return;
-
-  tasks.unshift({
-    id: Date.now().toString() + Math.random().toString(16).slice(2),
-    text,
-    priority: priorityInput.value,
-    dueDate: dueDateInput.value,
-    done: false
-  });
-
-  saveTasks();
-  taskForm.reset();
-  priorityInput.value = "Medium";
-  renderTasks();
-  taskInput.focus();
-});
-
-searchInput.addEventListener("input", renderTasks);
-
-document.querySelectorAll("[data-filter]").forEach(button => {
-  button.addEventListener("click", () => {
-    currentFilter = button.dataset.filter;
-    document.querySelectorAll("[data-filter]").forEach(b => {
-      b.classList.toggle("active", b === button);
-    });
-    renderTasks();
-  });
-});
-
-$("clearCompleted").addEventListener("click", () => {
-  tasks = tasks.filter(task => !task.done);
-  saveTasks();
-  renderTasks();
-});
-
-const themeBtn = $("themeBtn");
-
-if (localStorage.getItem("modernTodoTheme") === "dark") {
-  document.body.classList.add("dark");
-  themeBtn.textContent = "☀️ Light";
-}
-
-themeBtn.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-  const dark = document.body.classList.contains("dark");
-  localStorage.setItem("modernTodoTheme", dark ? "dark" : "light");
-  themeBtn.textContent = dark ? "☀️ Light" : "🌙 Dark";
-});
-
-renderTasks();
-
-
+// Notification permission enable cheyyadam
 async function enableNotifications() {
   if (!("Notification" in window)) {
     alert("Ee browser notifications support cheyyadu.");
     return false;
   }
 
-  const permission = await Notification.requestPermission();
+  try {
+    const permission = await Notification.requestPermission();
 
-  if (permission !== "granted") {
-    alert("Browser settings lo notifications allow cheyyi.");
+    if (permission !== "granted") {
+      if (notificationStatus) {
+        notificationStatus.textContent =
+          "Notifications allow cheyyaledu. Browser settings check cheyyi.";
+      }
+
+      alert("Browser settings lo notifications allow cheyyi.");
+      return false;
+    }
+
+    if (notificationStatus) {
+      notificationStatus.textContent = "Notifications enabled!";
+    }
+
+    alert("Notifications enabled!");
+    return true;
+  } catch (error) {
+    alert("Notifications enable cheyyadam lo problem vachindi.");
     return false;
   }
-
-  alert("Notifications enabled!");
-  return true;
 }
 
-function setTaskReminder(taskName, dateTime) {
+// Reminder set cheyyadam
+function setTaskReminder(taskId, taskName, dateTime) {
   const reminderDate = new Date(dateTime);
   const delay = reminderDate.getTime() - Date.now();
 
@@ -195,13 +85,29 @@ function setTaskReminder(taskName, dateTime) {
     return;
   }
 
-  if (!("Notification" in window) ||
-      Notification.permission !== "granted") {
-    alert("Munduga notifications enable cheyyi.");
+  if (
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  ) {
+    alert("Munduga Enable Notifications button click cheyyi.");
+    return;
+  }
+
+  // Browser timer maximum delay limit
+  const maxDelay = 2147483647;
+
+  if (delay > maxDelay) {
+    alert("Ee reminder chala future lo undi. Date daggara vachinappudu malli set cheyyi.");
     return;
   }
 
   setTimeout(() => {
+    const task = tasks.find((item) => item.id === taskId);
+
+    if (!task || task.done) {
+      return;
+    }
+
     new Notification("To-Do List Reminder", {
       body: "Task complete cheyyali: " + taskName
     });
@@ -210,3 +116,277 @@ function setTaskReminder(taskName, dateTime) {
   alert("Reminder set ayyindi!");
 }
 
+// Task add cheyyadam
+if (taskForm) {
+  taskForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const text = taskInput.value.trim();
+
+    if (!text) {
+      alert("Task name enter cheyyi.");
+      taskInput.focus();
+      return;
+    }
+
+    const reminderTime = reminderInput
+      ? reminderInput.value
+      : "";
+
+    if (
+      reminderTime &&
+      new Date(reminderTime).getTime() <= Date.now()
+    ) {
+      alert("Future date and time select cheyyi.");
+      return;
+    }
+
+    const newTask = {
+      id: Date.now().toString() +
+        Math.random().toString(16).slice(2),
+      text: text,
+      priority: priorityInput ? priorityInput.value : "Medium",
+      dueDate: dueDateInput ? dueDateInput.value : "",
+      reminderTime: reminderTime,
+      done: false
+    };
+
+    tasks.unshift(newTask);
+
+    saveTasks();
+
+    if (newTask.reminderTime) {
+      setTaskReminder(
+        newTask.id,
+        newTask.text,
+        newTask.reminderTime
+      );
+    }
+
+    taskForm.reset();
+
+    if (priorityInput) {
+      priorityInput.value = "Medium";
+    }
+
+    renderTasks();
+    taskInput.focus();
+  });
+}
+
+// Task complete / incomplete cheyyadam
+function toggleTask(taskId) {
+  tasks = tasks.map((task) => {
+    if (task.id === taskId) {
+      return {
+        ...task,
+        done: !task.done
+      };
+    }
+
+    return task;
+  });
+
+  saveTasks();
+  renderTasks();
+}
+
+// Task delete cheyyadam
+function deleteTask(taskId) {
+  tasks = tasks.filter((task) => task.id !== taskId);
+
+  saveTasks();
+  renderTasks();
+}
+
+// Due date format
+function formatDate(dateString) {
+  if (!dateString) {
+    return "";
+  }
+
+  const date = new Date(dateString + "T00:00:00");
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString();
+}
+
+// Tasks display cheyyadam
+function renderTasks() {
+  if (!taskList) {
+    return;
+  }
+
+  const searchTerm = searchInput
+    ? searchInput.value.toLowerCase().trim()
+    : "";
+
+  const activeFilter = document.querySelector(
+    ".filter-btn.active"
+  );
+
+  const filter = activeFilter
+    ? activeFilter.dataset.filter
+    : "all";
+
+  let filteredTasks = tasks.filter((task) => {
+    const matchesSearch = task.text
+      .toLowerCase()
+      .includes(searchTerm);
+
+    let matchesFilter = true;
+
+    if (filter === "active") {
+      matchesFilter = !task.done;
+    } else if (filter === "completed") {
+      matchesFilter = task.done;
+    }
+
+    return matchesSearch && matchesFilter;
+  });
+
+  if (filteredTasks.length === 0) {
+    taskList.innerHTML = `
+      <li class="empty-state">
+        Tasks levu. Kotha task add cheyyi!
+      </li>
+    `;
+    updateTaskCounts();
+    return;
+  }
+
+  taskList.innerHTML = filteredTasks.map((task) => {
+    const safeText = escapeHTML(task.text);
+    const safePriority = escapeHTML(task.priority || "Medium");
+    const safeDueDate = formatDate(task.dueDate);
+    const safeReminder = task.reminderTime
+      ? new Date(task.reminderTime).toLocaleString()
+      : "";
+
+    return `
+      <li class="task-item ${task.done ? "completed" : ""}">
+        <div class="task-content">
+          <input
+            type="checkbox"
+            class="task-checkbox"
+            data-action="toggle"
+            data-id="${escapeHTML(task.id)}"
+            ${task.done ? "checked" : ""}
+            aria-label="Mark task complete"
+          >
+
+          <div class="task-details">
+            <span class="task-text">${safeText}</span>
+
+            <div class="task-meta">
+              <span class="priority priority-${safePriority.toLowerCase()}">
+                ${safePriority}
+              </span>
+
+              ${
+                safeDueDate
+                  ? `<span class="task-date">Due: ${escapeHTML(safeDueDate)}</span>`
+                  : ""
+              }
+
+              ${
+                safeReminder
+                  ? `<span class="task-reminder">🔔 ${escapeHTML(safeReminder)}</span>`
+                  : ""
+              }
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="delete-btn"
+          data-action="delete"
+          data-id="${escapeHTML(task.id)}"
+          aria-label="Delete task"
+        >
+          Delete
+        </button>
+      </li>
+    `;
+  }).join("");
+
+  updateTaskCounts();
+}
+
+// Task list buttons handle cheyyadam
+if (taskList) {
+  taskList.addEventListener("click", (event) => {
+    const button = event.target.closest(
+      'button[data-action="delete"]'
+    );
+
+    if (button) {
+      deleteTask(button.dataset.id);
+    }
+  });
+
+  taskList.addEventListener("change", (event) => {
+    const checkbox = event.target.closest(
+      'input[data-action="toggle"]'
+    );
+
+    if (checkbox) {
+      toggleTask(checkbox.dataset.id);
+    }
+  });
+}
+
+// Task counts update cheyyadam
+function updateTaskCounts() {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.done).length;
+  const remaining = total - completed;
+
+  const totalElement = $("totalTasks");
+  const completedElement = $("completedTasks");
+  const remainingElement = $("remainingTasks");
+
+  if (totalElement) {
+    totalElement.textContent = total;
+  }
+
+  if (completedElement) {
+    completedElement.textContent = completed;
+  }
+
+  if (remainingElement) {
+    remainingElement.textContent = remaining;
+  }
+}
+
+// Search
+if (searchInput) {
+  searchInput.addEventListener("input", renderTasks);
+}
+
+// Filter buttons
+filterButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    filterButtons.forEach((item) => {
+      item.classList.remove("active");
+    });
+
+    button.classList.add("active");
+    renderTasks();
+  });
+});
+
+// Enable notifications button
+if (notificationButton) {
+  notificationButton.addEventListener(
+    "click",
+    enableNotifications
+  );
+}
+
+// Initial display
+renderTasks();
