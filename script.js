@@ -367,17 +367,11 @@ clearCompletedBtn.addEventListener("click", () => {
   renderTasks();
 });
 
+
 // Initial load
 renderTasks();
 restoreReminders();
-if ("Notification" in window) {
-  Notification.requestPermission().then((permission) => {
-    if (permission === "granted") {
-      new Notification("Test Notification", {
-        body: "Nee To-Do List notifications work avutunnayi!"
-      });
-    } else {
-      alert("Notification permission: " + permission);
-    }
-  });
+
+if ("Notification" in window && Notification.permission === "granted") {
+  notificationStatus.textContent = "✅ Notifications enabled!";
 }
