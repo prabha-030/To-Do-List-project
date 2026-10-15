@@ -215,6 +215,17 @@
     </footer>
   </main>
 
+
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(() => console.log("Service Worker ready"))
+      .catch((error) => console.error("SW error:", error));
+  }
+</script>
+
+
+
   <script src="script.js"></script>
 </body>
 </html>
