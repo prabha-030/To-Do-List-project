@@ -1,3 +1,4 @@
+
 const $ = (id) => document.getElementById(id);
 
 const taskForm = $("taskForm");
@@ -15,18 +16,18 @@ const summary = $("summary");
 const progress = $("progress");
 
 const filterButtons = document.querySelectorAll(".filter-btn");
+
 const STORAGE_KEY = "modernTodoTasks";
+const API_URL = "https://todo-reminder-backend-1.onrender.com";
 
 let tasks = [];
+let activeFilter = "All";
 
 try {
   tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 } catch {
   tasks = [];
 }
-
-let activeFilter = "All";
-const reminderTimers = new Map();
 
 function saveTasks() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
@@ -42,6 +43,99 @@ function escapeHTML(value) {
   })[char]);
 }
 
+// Convert VAPID public key
+function base64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const raw = atob(base64);
+
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
+
+// Register Service Worker
+async function getServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Service Worker ee browser lo support ledu.");
+  }
+
+  await navigator.serviceWorker.register("./service-worker.js");
+  return await navigator.serviceWorker.ready;
+}
+
+// Get existing subscription
+async function getPushSubscription() {
+  const registration = await getServiceWorker();
+  return await registration.pushManager.getSubscription();
+}
+
+// Enable push notifications and save subscription
+async function enableNotifications() {
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    alert("Ee browser push notifications support cheyyadu.");
+    return false;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      notificationStatus.textContent =
+        "Browser settings lo notifications allow cheyyi.";
+      return false;
+    }
+
+    const registration = await getServiceWorker();
+
+    const keyResponse = await fetch(`${API_URL}/vapid-public-key`);
+
+    if (!keyResponse.ok) {
+      throw new Error("Backend public key fetch avvaledu.");
+    }
+
+    const { publicKey } = await keyResponse.json();
+
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64ToUint8Array(publicKey)
+      });
+    }
+
+    const saveResponse = await fetch(`${API_URL}/subscribe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        subscription: subscription.toJSON()
+      })
+    });
+
+    if (!saveResponse.ok) {
+      const message = await saveResponse.text();
+      throw new Error(`Subscription save failed: ${message}`);
+    }
+
+    notificationStatus.textContent = "✅ Notifications enabled!";
+    alert("Push notifications setup successful!");
+    return true;
+  } catch (error) {
+    console.error("Push setup error:", error);
+    notificationStatus.textContent = "❌ Notification setup failed.";
+    alert("Push setup failed: " + error.message);
+    return false;
+  }
+}
+
+if (notificationButton) {
+  notificationButton.addEventListener("click", enableNotifications);
+}
+
 // Dark mode
 if (themeBtn) {
   if (localStorage.getItem("todoDarkMode") === "true") {
@@ -53,94 +147,56 @@ if (themeBtn) {
     document.body.classList.toggle("dark");
 
     const isDark = document.body.classList.contains("dark");
-    themeBtn.textContent = isDark ? "☀️ Light" : "🌙 Dark";
 
+    themeBtn.textContent = isDark ? "☀️ Light" : "🌙 Dark";
     localStorage.setItem("todoDarkMode", isDark);
   });
 }
 
-// Enable notifications
-async function enableNotifications() {
-  if (!("Notification" in window)) {
-    alert("Ee browser notifications support cheyyadu.");
-    return false;
+// Schedule reminder through backend
+async function scheduleBackendReminder(task) {
+  if (!task.reminderTime || task.done) return;
+
+  const dueAt = new Date(task.reminderTime);
+
+  if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+    return;
   }
 
   try {
-    const permission = await Notification.requestPermission();
+    const subscription = await getPushSubscription();
 
-    if (permission === "granted") {
-      notificationStatus.textContent = "✅ Notifications enabled!";
-      alert("Notifications enabled!");
-      return true;
+    if (!subscription) {
+      console.warn("Push subscription ledu. Enable Notifications click cheyyi.");
+      return;
     }
 
-    notificationStatus.textContent =
-      "Notifications allow cheyyi in browser settings.";
+    const response = await fetch(`${API_URL}/reminders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        subscription: subscription.toJSON(),
+        taskText: task.text,
+        dueAt: dueAt.toISOString()
+      })
+    });
 
-    alert("Browser settings lo notifications allow cheyyi.");
-    return false;
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "Reminder backend lo save avvaledu.");
+    }
+
+    console.log("Backend reminder scheduled:", task.text);
   } catch (error) {
-    alert("Notifications enable cheyyadam lo problem vachindi.");
-    return false;
+    console.error("Reminder scheduling failed:", error);
+    alert("Reminder backend lo save cheyyalekapoyam: " + error.message);
   }
-}
-
-if (notificationButton) {
-  notificationButton.addEventListener("click", enableNotifications);
-}
-
-// Set reminder
-function setTaskReminder(task) {
-  if (!task.reminderTime || task.done) return;
-
-  const reminderDate = new Date(task.reminderTime);
-  const delay = reminderDate.getTime() - Date.now();
-
-  if (Number.isNaN(reminderDate.getTime()) || delay <= 0) return;
-
-  // Browser timer limit
-  if (delay > 2147483647) return;
-
-  if (reminderTimers.has(task.id)) {
-    clearTimeout(reminderTimers.get(task.id));
-  }
-
-  const timer = setTimeout(() => {
-    const currentTask = tasks.find((item) => item.id === task.id);
-
-    if (
-      currentTask &&
-      !currentTask.done &&
-      "Notification" in window &&
-      Notification.permission === "granted"
-    ) {
-      new Notification("🔔 To-Do List Reminder", {
-        body: "Task complete cheyyali: " + currentTask.text
-      });
-    }
-
-    reminderTimers.delete(task.id);
-  }, delay);
-
-  reminderTimers.set(task.id, timer);
-}
-
-// Restore future reminders after page reload
-function restoreReminders() {
-  tasks.forEach((task) => {
-    if (
-      task.reminderTime &&
-      !task.done &&
-      new Date(task.reminderTime).getTime() > Date.now()
-    ) {
-      setTaskReminder(task);
-    }
-  });
 }
 
 // Add task
-taskForm.addEventListener("submit", (event) => {
+taskForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const text = taskInput.value.trim();
@@ -173,16 +229,10 @@ taskForm.addEventListener("submit", (event) => {
   saveTasks();
 
   if (reminderTime) {
-    if (
-      "Notification" in window &&
-      Notification.permission === "granted"
-    ) {
-      setTaskReminder(task);
-      alert("Task and reminder set ayyayi!");
+    if (Notification.permission === "granted") {
+      await scheduleBackendReminder(task);
     } else {
-      alert(
-        "Task add ayyindi. Reminder kosam munduga Enable Notifications click cheyyi."
-      );
+      alert("Munduga Enable Notifications click cheyyi.");
     }
   }
 
@@ -196,20 +246,17 @@ taskForm.addEventListener("submit", (event) => {
 // Complete / undo task
 function toggleTask(id) {
   tasks = tasks.map((task) => {
-    if (task.id === id) {
-      const updatedTask = { ...task, done: !task.done };
+    if (task.id !== id) return task;
 
-      if (updatedTask.done && reminderTimers.has(id)) {
-        clearTimeout(reminderTimers.get(id));
-        reminderTimers.delete(id);
-      } else if (!updatedTask.done) {
-        setTaskReminder(updatedTask);
-      }
+    const updatedTask = { ...task, done: !task.done };
 
-      return updatedTask;
+    // Marking a task complete does not cancel a reminder
+    // already stored on the backend.
+    if (!updatedTask.done) {
+      scheduleBackendReminder(updatedTask);
     }
 
-    return task;
+    return updatedTask;
   });
 
   saveTasks();
@@ -218,11 +265,6 @@ function toggleTask(id) {
 
 // Delete task
 function deleteTask(id) {
-  if (reminderTimers.has(id)) {
-    clearTimeout(reminderTimers.get(id));
-    reminderTimers.delete(id);
-  }
-
   tasks = tasks.filter((task) => task.id !== id);
   saveTasks();
   renderTasks();
@@ -339,9 +381,7 @@ searchInput.addEventListener("input", renderTasks);
 // Filters
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    filterButtons.forEach((item) => {
-      item.classList.remove("active");
-    });
+    filterButtons.forEach((item) => item.classList.remove("active"));
 
     button.classList.add("active");
     activeFilter = button.dataset.filter;
@@ -352,39 +392,21 @@ filterButtons.forEach((button) => {
 
 // Clear completed tasks
 clearCompletedBtn.addEventListener("click", () => {
-  const completedTasks = tasks.filter((task) => task.done);
-
-  completedTasks.forEach((task) => {
-    if (reminderTimers.has(task.id)) {
-      clearTimeout(reminderTimers.get(task.id));
-      reminderTimers.delete(task.id);
-    }
-  });
-
   tasks = tasks.filter((task) => !task.done);
-
   saveTasks();
   renderTasks();
 });
 
-
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      await navigator.serviceWorker.register("./service-worker.js")
-      console.log("Service Worker registered successfully!");
-    } catch (error) {
-      console.error("Service Worker registration failed:", error);
-    }
-  });
-}
-
-
 // Initial load
 renderTasks();
-restoreReminders();
 
 if ("Notification" in window && Notification.permission === "granted") {
-  notificationStatus.textContent = "✅ Notifications enabled!";
+  notificationStatus.textContent = "✅ Notifications permission granted";
 }
+
+getServiceWorker().then(() => {
+  console.log("Service Worker ready");
+}).catch((error) => {
+  console.error("Service Worker registration failed:", error);
+});
+```
